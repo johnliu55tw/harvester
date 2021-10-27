@@ -362,6 +362,7 @@ harvester-node-disk-manager:
     pullPolicy: Always
     # Overrides the image tag whose default is the chart appVersion.
     tag: master-head
+  addDiskPath: ""
 
 csi-snapshotter:
   ## Specify whether to install the csi-snapshotter

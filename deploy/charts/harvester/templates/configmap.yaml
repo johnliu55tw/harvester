@@ -64,3 +64,11 @@ data:
       sleep 2
     done
     `}}
+
+---
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: harvester-node-disk-manager
+data:
+  addDiskPath: {{(index .Values "harvester-node-disk-manager").addDiskPath | quote }}
