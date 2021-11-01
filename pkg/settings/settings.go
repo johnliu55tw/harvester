@@ -30,6 +30,7 @@ var (
 	SupportBundleImagePullPolicy = NewSetting("support-bundle-image-pull-policy", "IfNotPresent")
 	DefaultStorageClass          = NewSetting("default-storage-class", "longhorn")
 	AutoAddDiskPaths             = NewSetting("auto-add-disk-paths", "")
+	LoadSettingsFromInstaller    = NewSetting("load-settings-from-installer", "true")
 )
 
 const (

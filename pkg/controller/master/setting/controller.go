@@ -2,16 +2,30 @@ package setting
 
 import (
 	"github.com/sirupsen/logrus"
+	"k8s.io/apimachinery/pkg/api/errors"
 
 	appsv1 "github.com/rancher/wrangler/pkg/generated/controllers/apps/v1"
+	corev1 "github.com/rancher/wrangler/pkg/generated/controllers/core/v1"
 
 	harvesterv1 "github.com/harvester/harvester/pkg/apis/harvesterhci.io/v1beta1"
+
+	"github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
+	systemSetting "github.com/harvester/harvester/pkg/settings"
+)
+
+const (
+	harvesterSystemNamespace = "harvester-system"
+	installerSettingsCmName  = "settings-overwrite"
 )
 
 // Handler updates the log level on setting changes
 type Handler struct {
-	dsClient appsv1.DaemonSetClient
-	dsCache  appsv1.DaemonSetCache
+	dsClient          appsv1.DaemonSetClient
+	dsCache           appsv1.DaemonSetCache
+	cmClient          corev1.ConfigMapClient
+	cmCache           corev1.ConfigMapCache
+	settingController v1beta1.SettingController
+	settingCache      v1beta1.SettingCache
 }
 
 func (h *Handler) LogLevelOnChanged(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
@@ -30,12 +44,12 @@ func (h *Handler) LogLevelOnChanged(key string, setting *harvesterv1.Setting) (*
 }
 
 func (h *Handler) AutoAddDiskPathsOnChanged(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
-	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != "auto-add-disk-paths" {
+	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != systemSetting.AutoAddDiskPaths.Name {
 		return setting, nil
 	}
 
 	logrus.Debug("AudoAddDiskPathOnChanged")
-	ds, err := h.dsCache.Get("harvester-system", "harvester-node-disk-manager")
+	ds, err := h.dsCache.Get(harvesterSystemNamespace, "harvester-node-disk-manager")
 	if err != nil {
 		return setting, nil
 	}
@@ -61,5 +75,63 @@ func (h *Handler) AutoAddDiskPathsOnChanged(key string, setting *harvesterv1.Set
 		return setting, err
 	}
 
-	return setting, nil
+	return nil, nil
+}
+
+func (h *Handler) LoadSettingsFromInstallerOnChanged(key string, setting *harvesterv1.Setting) (*harvesterv1.Setting, error) {
+	if setting == nil || setting.DeletionTimestamp != nil || setting.Name != systemSetting.LoadSettingsFromInstaller.Name {
+		return setting, nil
+	}
+
+	settingCopy := setting.DeepCopy()
+
+	var loadFromInstaller string
+	if settingCopy.Value == "" {
+		loadFromInstaller = settingCopy.Default
+	} else {
+		loadFromInstaller = settingCopy.Value
+	}
+
+	if loadFromInstaller == "true" {
+		logrus.Info("load settings provided by installer")
+		cm, err := h.cmCache.Get(harvesterSystemNamespace, installerSettingsCmName)
+		if err != nil {
+			logrus.Error("failed to get installer settings ConfigMap:", err)
+			return nil, err
+		}
+
+		for settingName, settingValue := range cm.Data {
+			logrus.Infof("overwrite setting '%s' with '%s'", settingName, settingValue)
+			if err := h.updateSetting(settingName, settingValue); err != nil {
+				if errors.IsNotFound(err) {
+					logrus.Warningf("no such setting '%s', skip update", settingName)
+				} else {
+					logrus.Errorf("failed to update setting '%s': '%s'", settingName, err)
+				}
+			}
+		}
+
+		logrus.Info("installer settings loaded, disable loading")
+		settingCopy.Value = "false"
+		if _, err := h.settingController.Update(settingCopy); err != nil {
+			logrus.Error("failed to disable loading:", err)
+		}
+	}
+
+	return nil, nil
+}
+
+func (h *Handler) updateSetting(name, value string) error {
+	settingToUpdate, err := h.settingCache.Get(name)
+	if err != nil {
+		return err
+	}
+
+	settingToUpdate = settingToUpdate.DeepCopy()
+	settingToUpdate.Value = value
+	if _, err := h.settingController.Update(settingToUpdate); err != nil {
+		return err
+	}
+
+	return nil
 }
