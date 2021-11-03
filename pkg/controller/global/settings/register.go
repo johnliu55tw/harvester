@@ -117,10 +117,6 @@ func (s *settingsProvider) SetAll(settingsMap map[string]settings.Setting) error
 			return err
 		} else {
 			update := false
-			if obj.Default != setting.Default {
-				obj.Default = setting.Default
-				update = true
-			}
 			if value != "" && obj.Value != value {
 				obj.Value = value
 				update = true
