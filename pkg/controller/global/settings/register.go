@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/rancher/steve/pkg/server"
+	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/harvester/harvester/pkg/config"
 	ctlharvesterv1 "github.com/harvester/harvester/pkg/generated/controllers/harvesterhci.io/v1beta1"
 	"github.com/harvester/harvester/pkg/settings"
+	"github.com/harvester/harvester/pkg/util"
 )
 
 func Register(ctx context.Context, scaled *config.Scaled, server *server.Server, options config.Options) error {
@@ -121,7 +123,13 @@ func (s *settingsProvider) SetAll(settingsMap map[string]settings.Setting) error
 				obj.Default = setting.Default
 				update = true
 			}
+			if userOverwrite, ok := obj.Annotations[util.AnnotationDefaultOverwrite]; ok && obj.Value == "" {
+				logrus.Infof("overwrite setting '%s' value with annotation provided default", obj.Name)
+				obj.Value = userOverwrite
+				update = true
+			}
 			if value != "" && obj.Value != value {
+				logrus.Infof("Overwrite setting '%s' value with environment variable", obj.Name)
 				obj.Value = value
 				update = true
 			}

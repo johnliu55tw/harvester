@@ -10,6 +10,7 @@ const (
 	AnnotationVolumeClaimTemplates = prefix + "/volumeClaimTemplates"
 	AnnotationImageID              = prefix + "/imageId"
 	AnnotationHash                 = prefix + "/hash"
+	AnnotationDefaultOverwrite     = prefix + "/default-overwrite"
 
 	BackupTargetSecretName      = "harvester-backup-target-secret"
 	LonghornSystemNamespaceName = "longhorn-system"
